@@ -1,0 +1,10 @@
+name: Jijon
+version: ${project.version}
+main: com.onruntime.jijon.Jijon
+api-version: 1.13
+
+commands:
+  warp:
+    aliases: [setwarp, delwarp, warps]
+    description: Warp command
+    usage: "§cUsage : /[warp/setwarp/delwarp/warps] <arg>"
