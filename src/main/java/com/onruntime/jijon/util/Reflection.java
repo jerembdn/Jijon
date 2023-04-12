@@ -10,15 +10,6 @@ import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * This file is a part of Valon, located on fr.the3dx900.valon.util
- * <p>
- * Copyright (c) BerryGames https://berrygames.net/ - All rights reserved
- * <p>
- *
- * @author Jérèm {@literal <hey@3dx900.fr>}
- * Created the 07/10/2019 at 22:54.
- */
 public class Reflection {
     public static void setFinal(Object object, Field field, Object value) throws ReflectiveOperationException {
         field.setAccessible(true);

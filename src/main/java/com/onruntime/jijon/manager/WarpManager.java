@@ -3,16 +3,15 @@ package com.onruntime.jijon.manager;
 import com.onruntime.jijon.Jijon;
 import com.onruntime.jijon.data.Warp;
 import lombok.Getter;
+
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class WarpManager implements Manager {
 
@@ -99,27 +98,21 @@ public class WarpManager implements Manager {
 
         @Override
         public void teleport(Player player) {
-            player.sendMessage("§7Tu vas être tp dans 2 secondes...");
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    if(!player.isOnline()) {
-                        cancel();
-                        return;
-                    }
+            if(!player.isOnline()) {
+                return;
+            }
 
-                    player.teleport(getLocation());
-                    player.setFallDistance(0);
-                    if(player.isInsideVehicle() && player.getVehicle() != null)  {
-                        var vehicle = player.getVehicle();
-                        vehicle.teleport(getLocation());
-                        vehicle.setFallDistance(0);
-                        vehicle.addPassenger(player);
-                    }
+            player.setFallDistance(0);
+            player.teleport(getLocation());
 
-                    player.sendMessage(String.format("§7T'as été tp au warp %s", getName()));
-                }
-            }.runTaskLaterAsynchronously(Jijon.INSTANCE, 2000);
+            if(player.isInsideVehicle() && player.getVehicle() != null)  {
+                var vehicle = player.getVehicle();
+                vehicle.setFallDistance(0);
+                vehicle.teleport(getLocation());
+                vehicle.addPassenger(player);
+            }
+
+            player.sendMessage(String.format("§7T'as été tp au warp %s", getName()));
         }
     }
 }

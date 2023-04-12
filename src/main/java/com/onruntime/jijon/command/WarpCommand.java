@@ -1,6 +1,5 @@
 package com.onruntime.jijon.command;
 
-import com.onruntime.jijon.Jijon;
 import com.onruntime.jijon.manager.WarpManager;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -11,14 +10,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.StringUtil;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class WarpCommand implements TabExecutor {
 
     private final WarpManager manager;
 
-    public WarpCommand() {
-        manager = Jijon.INSTANCE.getWarpManager();
+    public WarpCommand(WarpManager manager) {
+        this.manager = manager;
     }
 
     @Override
