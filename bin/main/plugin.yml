@@ -10,4 +10,4 @@ commands:
     usage: "§cUsage : /[warp/setwarp/delwarp/warps] <arg>"
   clan:
     description: Clan command
-    usage: "§cUsage : /[clan/c] <arg>"
+    usage: "§cUsage : /clan <arg>"

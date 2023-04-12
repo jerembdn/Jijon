@@ -1,6 +1,7 @@
 package com.onruntime.jijon.manager;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -9,10 +10,14 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import com.onruntime.jijon.Jijon;
 import com.onruntime.jijon.data.Clan;
+import com.onruntime.jijon.util.FormatMessage;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -33,6 +38,8 @@ public class ClanManager implements Manager, Listener {
 
 	@Override
 	public void init() {
+		Jijon.INSTANCE.getServer().getPluginManager().registerEvents(this, Jijon.INSTANCE);
+
 		try {
 			this.config = Jijon.INSTANCE.getConfigManager().createConfig("clans");
 			config.createSection("clans");
@@ -68,6 +75,13 @@ public class ClanManager implements Manager, Listener {
 		}
 	}
 
+	@Override
+	public void stop() {
+		config.set("clans", null);
+
+		clans.forEach((s, clan) -> section.set(s.toString(), clan));
+	}
+
 	public Clan getClan(UUID uniqueId) {
 		return clans.getOrDefault(uniqueId, null);
 	}
@@ -81,23 +95,53 @@ public class ClanManager implements Manager, Listener {
 				.findFirst().orElse(null);
 	}
 
+	public boolean isPlayerInClan(Player player) {
+		return clans.values().stream().anyMatch(clan -> clan.isMember(player));
+	}
+
 	public boolean doesClanExists(String name) {
 		return clans.values().stream().anyMatch(clan -> clan.getName().equalsIgnoreCase(name));
 	}
 
-	public void addClan(String name, String tag, OfflinePlayer leader) {
-		addClan(name, tag, leader, new HashMap<UUID, OfflinePlayer>(), new HashMap<UUID, OfflinePlayer>());
+	public Clan addClan(String name, String tag, OfflinePlayer leader) {
+		return addClan(name, tag, leader, new HashMap<UUID, OfflinePlayer>(), new HashMap<UUID, OfflinePlayer>());
 	}
 
-	public void addClan(String name, String tag, OfflinePlayer leader, HashMap<UUID, OfflinePlayer> members) {
-		addClan(name, tag, leader, members, new HashMap<UUID, OfflinePlayer>());
+	public Clan addClan(String name, String tag, OfflinePlayer leader, HashMap<UUID, OfflinePlayer> members) {
+		return addClan(name, tag, leader, members, new HashMap<UUID, OfflinePlayer>());
 	}
 
-	public void addClan(String name, String tag, OfflinePlayer leader, HashMap<UUID, OfflinePlayer> members,
+	public Clan addClan(String name, String tag, OfflinePlayer leader, HashMap<UUID, OfflinePlayer> members,
 			HashMap<UUID, OfflinePlayer> invites) {
 		var uniqueId = UUID.randomUUID();
 		var clan = new ClanImpl(uniqueId, name, tag, leader, members, invites);
 		clans.put(uniqueId, clan);
+
+		return clan;
+	}
+
+	@EventHandler(priority = EventPriority.NORMAL)
+	public void onPlayerJoin(PlayerJoinEvent event) {
+		var player = event.getPlayer();
+
+		this.clans.values().forEach(clan -> {
+			if (clan.isInvited(player)) {
+				var component = new TextComponent("Clique ici");
+				component.setClickEvent(new ClickEvent(
+						ClickEvent.Action.RUN_COMMAND, "/clan join " + clan.getUniqueId()));
+
+				player.sendMessage(
+						FormatMessage.format(clan.getTag(),
+								"§7Tu as été invité dans le clan §a§l%s§7. %s§7 pour le rejoindre.", clan.getName(),
+								component.toLegacyText()));
+			}
+		});
+
+		if (this.isPlayerInClan(player)) {
+			var clan = this.getPlayerClan(player);
+
+			clan.setPlayerTags(player);
+		}
 	}
 
 	static class ClanImpl implements Clan {
@@ -109,7 +153,6 @@ public class ClanManager implements Manager, Listener {
 		private String name;
 
 		@Getter
-		@Setter
 		private String tag;
 
 		@Getter
@@ -137,6 +180,36 @@ public class ClanManager implements Manager, Listener {
 			this.leader = leader;
 			this.members = members;
 			this.invites = invites;
+
+			if (tag != null && tag.length() > 4) {
+				this.setTag(tag.substring(0, 4));
+			}
+
+			var tempMembers = new ArrayList<OfflinePlayer>();
+
+			tempMembers.add(leader);
+			tempMembers.addAll(members.values());
+
+			tempMembers.forEach(player -> {
+				if (player.isOnline()) {
+					this.setPlayerTags(player.getPlayer());
+				}
+			});
+		}
+
+		@Override
+		public void setTag(String tag) {
+			if (tag != null && tag.length() > 4) {
+				this.tag = tag.substring(0, 4);
+			} else {
+				this.tag = tag;
+			}
+
+			getMembers().forEach(player -> {
+				if (player.isOnline()) {
+					this.setPlayerTags(player.getPlayer());
+				}
+			});
 		}
 
 		@Override
@@ -157,25 +230,25 @@ public class ClanManager implements Manager, Listener {
 		@Override
 		public void addMember(OfflinePlayer player) {
 			this.members.put(player.getUniqueId(), player);
+
+			if (player.isOnline()) {
+				this.setPlayerTags(player.getPlayer());
+			}
 		}
 
 		@Override
 		public void removeMember(OfflinePlayer player) {
 			this.members.remove(player.getUniqueId());
+
+			if (player.isOnline()) {
+				this.resetPlayerTags(player.getPlayer());
+			}
 		}
 
 		@Override
 		public void invite(Player who, Player inviter) {
 			if (!invites.containsKey(who.getUniqueId())) {
 				this.invites.put(who.getUniqueId(), who);
-
-				var component = new TextComponent("Clique ici");
-				component.setClickEvent(new ClickEvent(
-						ClickEvent.Action.RUN_COMMAND, "/clan accept " + this.getUniqueId()));
-
-				who.getPlayer().sendMessage(
-						String.format("§e§l%s§7T'as invité dans le clan §d§l%s. %s§7pour le rejoindre.",
-								inviter.getName(), this.getName(), component.toLegacyText()));
 			}
 		}
 
@@ -185,29 +258,37 @@ public class ClanManager implements Manager, Listener {
 		}
 
 		@Override
+		public boolean isInvited(OfflinePlayer player) {
+			return invites.containsKey(player.getUniqueId());
+		}
+
+		@Override
 		public void acceptInvite(OfflinePlayer player) {
 			if (invites.containsKey(player.getUniqueId())) {
-				this.broadcast("§d§l%s§7 a rejoint le clan." + player.getName());
-
 				this.addMember(player);
 				this.invites.remove(player.getUniqueId());
-
-				if (player.isOnline()) {
-					player.getPlayer().sendMessage("§7Tu fais officiellement parti du clan §d§l%s§7." + this.getName());
-				}
 			}
 		}
 
 		@Override
-		public void broadcast(String message) {
-			getMembers().stream().filter(member -> member.isOnline()).forEach(member -> {
-				member.getPlayer().sendMessage(message);
+		public void broadcast(String message, Player... without) {
+			var players = new ArrayList<Player>();
+
+			getMembers().forEach(player -> {
+				if (player.isOnline()) {
+					var onlinePlayer = (Player) player;
+					players.add(onlinePlayer);
+				}
 			});
+
+			players.removeAll(Arrays.asList(without));
+
+			players.forEach(player -> player.sendMessage(FormatMessage.format(this.getTag(), message)));
 		}
 
 		@Override
 		public void disband() {
-			broadcast("§7Le clan §d§l%s§7 a été dissout." + this.getName());
+			broadcast("§7Le clan §a§l%s§7 a été dissout." + this.getName());
 		}
 	}
 }
